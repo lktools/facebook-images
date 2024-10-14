@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Image Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex flex-col items-center min-h-screen">
+
+    <h1 class="text-3xl font-bold bg-gray-800 text-white w-full text-center py-4">Modern Image Viewer</h1>
+
+    <!-- Folder Selection Buttons -->
+    <div class="flex space-x-4 mt-8">
+        <button id="general-button" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">General</button>
+        <button id="michelle-button" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Michelle</button>
+        <button id="sandani-button" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Sandani</button>
+    </div>
+
+    <!-- Image Container -->
+    <div id="image-container" class="mt-8 w-full max-w-lg bg-white shadow-lg rounded overflow-hidden">
+        <img id="main-image" src="" alt="Main Image" class="w-full h-auto object-cover">
+    </div>
+
+    <!-- Action Buttons -->
+    <div id="actions" class="flex space-x-4 mt-4">
+        <button id="next-button" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Next Image</button>
+        <button id="copy-button" class="bg-gray-500 text-white px-4 py-2 rounded cursor-pointer">Copy Image</button>
+    </div>
+
+    <!-- Progress and Image Count -->
+    <div class="mt-6 w-full max-w-lg text-center">
+        <p id="image-count" class="text-lg font-medium">0 / 0 Images Remaining</p>
+        <div class="relative pt-1">
+            <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-gray-300">
+                <div id="progress-bar" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-green-500 w-0"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const images = {
+            "General": [],
+            "Michelle": [],
+            "Sandani": []
+        };
+
+        let currentFolder = 'General'; // Default folder
+        let currentIndex = 0;
+
+        // Fetch images from the selected folder
+        function fetchImages(folder) {
+            fetch(`/images/${folder}/`)
+                .then(response => response.text())
+                .then(text => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(text, 'text/html');
+                    const imageLinks = Array.from(doc.querySelectorAll('a'))
+                                            .filter(link => link.href.match(/\.(jpg|jpeg|png|gif)$/))
+                                            .map(link => `/images/${folder}/` + link.href.split('/').pop());
+                    images[folder] = imageLinks;
+                    showRandomImage(folder);
+                    updateImageCount(folder);
+                });
+        }
+
+        // Show a random image from the selected folder
+        function showRandomImage(folder) {
+            if (!images[folder] || images[folder].length === 0) return;
+
+            let lastIndex = localStorage.getItem(`${folder}-lastIndex`);
+            let index;
+            do {
+                index = Math.floor(Math.random() * images[folder].length);
+            } while (index == lastIndex && images[folder].length > 1);
+
+            localStorage.setItem(`${folder}-lastIndex`, index);
+
+            const randomImageSrc = images[folder][index];
+            const imgElement = document.getElementById("main-image");
+            imgElement.src = randomImageSrc;
+            currentIndex = index; // Update current index
+            updateImageCount(folder); // Update count whenever a new image is shown
+        }
+
+        // Update the image count and progress bar
+        function updateImageCount(folder) {
+            const totalImages = images[folder].length;
+            const remainingImages = totalImages - currentIndex;
+
+            const progressBar = document.getElementById("progress-bar");
+            const imageCountElement = document.getElementById("image-count");
+
+            imageCountElement.textContent = `${remainingImages} / ${totalImages} Images Remaining`;
+
+            const progressPercent = ((currentIndex + 1) / totalImages) * 100;
+            progressBar.style.width = progressPercent + '%';
+        }
+
+        // Event listeners for folder buttons
+        document.getElementById('general-button').addEventListener('click', function () {
+            currentFolder = 'General';
+            fetchImages('General');
+            currentIndex = 0; // Reset index for the new folder
+        });
+
+        document.getElementById('michelle-button').addEventListener('click', function () {
+            currentFolder = 'Michelle';
+            fetchImages('Michelle');
+            currentIndex = 0; // Reset index for the new folder
+        });
+
+        document.getElementById('sandani-button').addEventListener('click', function () {
+            currentFolder = 'Sandani';
+            fetchImages('Sandani');
+            currentIndex = 0; // Reset index for the new folder
+        });
+
+        // Event listener for the next image button
+        document.getElementById('next-button').addEventListener('click', function () {
+            if (currentIndex < images[currentFolder].length - 1) {
+                currentIndex++;
+            } else {
+                currentIndex = 0; // Loop back to the beginning if at the end
+            }
+            showRandomImage(currentFolder);
+            updateImageCount(currentFolder);
+        });
+
+        // Event for copy button
+        document.getElementById('copy-button').addEventListener('click', function () {
+            const imgElement = document.getElementById('main-image');
+
+            // Create a canvas to draw the image on
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Set canvas dimensions to the image's dimensions
+            canvas.width = imgElement.naturalWidth; // Use natural width
+            canvas.height = imgElement.naturalHeight; // Use natural height
+            ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+            
+            canvas.toBlob(function(blob) {
+                const item = new ClipboardItem({ 'image/png': blob });
+                navigator.clipboard.write([item]).then(function() {
+                    alert("Image copied to clipboard!");
+                }).catch(function(error) {
+                    console.error("Failed to copy image: ", error);
+                });
+            });
+        });
+
+        // Load the default folder images on page load
+        fetchImages("General");
+    </script>
+
+</body>
+</html>
